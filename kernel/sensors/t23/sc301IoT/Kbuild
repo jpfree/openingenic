@@ -3,7 +3,7 @@ OUT := $(MODULE_NAME)
 
 DIR=sensors/$(SOC)/sc301IoT
 
-SRCS := $(DIR)/sc301IoT/sc301IoT.c
+SRCS := $(DIR)/sc301IoT.c
 
 OBJS := $(SRCS:%.c=%.o) $(ASM_SRCS:%.S=%.o)
 

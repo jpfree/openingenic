@@ -3,7 +3,7 @@ OUT := $(MODULE_NAME)
 
 DIR=sensors/$(SOC)/sc2331
 
-SRCS := $(DIR)/sc2331/sc2331.c
+SRCS := $(DIR)/sc2331.c
 
 OBJS := $(SRCS:%.c=%.o) $(ASM_SRCS:%.S=%.o)
 
