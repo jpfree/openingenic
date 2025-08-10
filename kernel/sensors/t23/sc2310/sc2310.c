@@ -29,7 +29,7 @@
 #define sc2310_SUPPORT_30FPS_SCLK (1100 * 1125 * 30 * 2)
 #define SENSOR_OUTPUT_MAX_FPS 30
 #define SENSOR_OUTPUT_MIN_FPS 5
-#define SENSOR_VERSION	"H20230720a"
+#define SENSOR_VERSION	"H20230921a"
 
 static int reset_gpio = GPIO_PA(18);
 module_param(reset_gpio, int, S_IRUGO);
@@ -39,7 +39,7 @@ static int pwdn_gpio = -1;
 module_param(pwdn_gpio, int, S_IRUGO);
 MODULE_PARM_DESC(pwdn_gpio, "Power down GPIO NUM");
 
-static int shvflip = 0;
+static int shvflip = 1;
 module_param(shvflip, int, S_IRUGO);
 MODULE_PARM_DESC(shvflip, "Sensor HV Flip Enable interface");
 
@@ -843,19 +843,31 @@ static int sc2310_g_chip_ident(struct tx_isp_subdev *sd,
 
 static int sc2310_set_vflip(struct tx_isp_subdev *sd, int enable)
 {
-	int ret = -1;
-	unsigned char val = 0x0;
+	int ret = 0;
+	uint8_t val;
+	struct tx_isp_sensor *sensor = sd_to_sensor_device(sd);
 
-	ret = sc2310_read(sd, 0x3221, &val);
-	if(enable & 0x2)
-		val |= 0x60;
-	else
-		val &= 0x9f;
-	ret += sc2310_write(sd, 0x3221, val);
-	if(0 != ret)
-		return ret;
+	/* 2'b01:mirror,2'b10:filp */
+	val = sc2310_read(sd, 0x3221, &val);
+	switch(enable) {
+	case 0:
+		sc2310_write(sd, 0x3221, val & 0x99);
+		break;
+	case 1:
+		sc2310_write(sd, 0x3221, val | 0x06);
+		break;
+	case 2:
+		sc2310_write(sd, 0x3221, val | 0x60);
+		break;
+	case 3:
+		sc2310_write(sd, 0x3221, val | 0x66);
+		break;
+	}
 
-	return 0;
+	if(!ret)
+		ret = tx_isp_call_subdev_notify(sd, TX_ISP_EVENT_SYNC_SENSOR_ATTR, &sensor->video);
+
+	return ret;
 }
 
 static int sc2310_sensor_ops_ioctl(struct tx_isp_subdev *sd, unsigned int cmd, void *arg)

@@ -102,6 +102,7 @@ char *get_clka_name(void)
 	return clka_name;
 }
 
+#ifndef TX_ISP_MALLOC_TEST
 void *private_vmalloc(unsigned long size)
 {
 	void *addr = vmalloc(size);
@@ -112,6 +113,9 @@ void private_vfree(const void *addr)
 {
 	vfree(addr);
 }
+#else
+void *vmalloc_t = NULL;
+#endif /* TX_ISP_MALLOC_TEST */
 
 ktime_t private_ktime_set(const long secs, const unsigned long nsecs)
 {

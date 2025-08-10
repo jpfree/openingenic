@@ -32,8 +32,19 @@ int get_isp_clk(void);
 int get_isp_clka(void);
 char *get_clk_name(void);
 char *get_clka_name(void);
+#ifndef TX_ISP_MALLOC_TEST
 void *private_vmalloc(unsigned long size);
 void private_vfree(const void *addr);
+#else
+#include <linux/vmalloc.h>
+extern void *vmalloc_t;
+#define private_vmalloc(size) \
+        (vmalloc_t = vmalloc(size)); \
+        printk("[%s %d] vmalloc addr is %p, size is %d\n", __func__, __LINE__, vmalloc_t, size)
+#define private_vfree(addr) \
+        vfree(addr); \
+        printk("[%s %d] vfree addr is %p\n", __func__, __LINE__, addr)
+#endif /* TX_ISP_MALLOC_TEST */
 
 ktime_t private_ktime_set(const long secs, const unsigned long nsecs);
 void private_set_current_state(unsigned int state);

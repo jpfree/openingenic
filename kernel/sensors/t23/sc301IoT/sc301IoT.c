@@ -30,7 +30,7 @@
 #define sc301IoT_SUPPORT_WDR_15FPS_SCLK (108000000)
 #define SENSOR_OUTPUT_MAX_FPS 30
 #define SENSOR_OUTPUT_MIN_FPS 5
-#define SENSOR_VERSION	"H20230628a"
+#define SENSOR_VERSION	"H20230926a"
 
 static int reset_gpio = GPIO_PA(18);
 module_param(reset_gpio, int, S_IRUGO);
@@ -48,7 +48,7 @@ static int sensor_max_fps = TX_SENSOR_MAX_FPS_25;
 module_param(sensor_max_fps, int, S_IRUGO);
 MODULE_PARM_DESC(sensor_max_fps, "Sensor Max Fps set interface");
 
-static int shvflip = 0;
+static int shvflip = 1;
 module_param(shvflip, int, S_IRUGO);
 MODULE_PARM_DESC(shvflip, "Sensor HV Flip Enable interface");
 
@@ -1107,19 +1107,36 @@ static int sc301IoT_g_chip_ident(struct tx_isp_subdev *sd,
 
 static int sc301IoT_set_vflip(struct tx_isp_subdev *sd, int enable)
 {
+	struct tx_isp_sensor *sensor = sd_to_sensor_device(sd);
 	int ret = -1;
 	unsigned char val = 0x0;
 
-	ret = sc301IoT_read(sd, 0x3221, &val);
-	if(enable & 0x2)
-		val |= 0x60;
-	else
-		val &= 0x9f;
-	ret += sc301IoT_write(sd, 0x3221, val);
-	if(0 != ret)
-		return ret;
+	enable &= 0x03;
 
-	return 0;
+	switch(enable) {
+	case 0:
+		val = 0x00;
+		break;
+	case 1:
+		val = 0x06;
+		break;
+	case 2:
+		val = 0x60;
+		break;
+	case 3:
+		val = 0x66;
+		break;
+	default:
+		break;
+	}
+	ret = sc301IoT_write(sd, 0x3221, val);
+	if(ret != 0)
+		ISP_ERROR("%s %d: reg write err!!\n",__func__,__LINE__);
+
+	if(!ret)
+		ret = tx_isp_call_subdev_notify(sd, TX_ISP_EVENT_SYNC_SENSOR_ATTR, &sensor->video);
+
+	return ret;
 }
 
 static int sc301IoT_set_wdr(struct tx_isp_subdev *sd, int wdr_en)

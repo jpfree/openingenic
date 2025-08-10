@@ -33,7 +33,7 @@
 #define GC2053_SUPPORT_15FPS_DVP_SCLK (37125000)
 #define SENSOR_OUTPUT_MAX_FPS 30
 #define SENSOR_OUTPUT_MIN_FPS 5
-#define SENSOR_VERSION	"H20211111a"
+#define SENSOR_VERSION	"H20230921a"
 
 static unsigned char vts0 = 0x05;
 static unsigned char vts1 = 0x8a;
@@ -60,7 +60,7 @@ static int sensor_max_fps = TX_SENSOR_MAX_FPS_30;
 module_param(sensor_max_fps, int, S_IRUGO);
 MODULE_PARM_DESC(sensor_max_fps, "Sensor Max Fps set interface");
 
-static int shvflip = 0;
+static int shvflip = 1;
 module_param(shvflip, int, S_IRUGO);
 MODULE_PARM_DESC(shvflip, "Sensor HV Flip Enable interface");
 
@@ -1335,23 +1335,30 @@ static int gc2053_set_fps(struct tx_isp_subdev *sd, int fps)
 
 static int gc2053_set_vflip(struct tx_isp_subdev *sd, int enable)
 {
-	struct tx_isp_sensor *sensor = sd_to_sensor_device(sd);
+		struct tx_isp_sensor *sensor = sd_to_sensor_device(sd);
 	int ret = -1;
 	unsigned char val = 0x0;
 
-	ret = gc2053_write(sd, 0xfe, 0x0);
-	ret += gc2053_read(sd, 0x17, &val);
-
-	if(enable & 0x2)
-		val |= 0x02;
-	else
-		val &= 0xfd;
-
-	ret += gc2053_write(sd, 0x17, val);
-
-	if(!ret)
-		ret = tx_isp_call_subdev_notify(sd, TX_ISP_EVENT_SYNC_SENSOR_ATTR, &sensor->video);
-
+    gc2053_write(sd, 0xfe, 0x00);
+	switch (enable)
+	{
+		case 0:
+		 ret = gc2053_write(sd, 0x17, 0x00); /*normal*/
+		//gc2053_write(sd, 0xfe, 0x00);
+		break;
+	case 1:
+		 ret = gc2053_write(sd, 0x17, 0x01); /*mirror*/
+		//gc2053_write(sd, 0xfe, 0x02);
+		break;
+	case 2:
+		 ret = gc2053_write(sd, 0x17, 0x02); /*flip*/
+		//gc2053_write(sd, 0xfe, 0x01);
+		break;
+	case 3:
+		 ret = gc2053_write(sd, 0x17, 0x03); /*mirror and flip*/
+		//gc2053_write(sd, 0xfe, 0x03);
+		break;
+	}
 	return ret;
 }
 

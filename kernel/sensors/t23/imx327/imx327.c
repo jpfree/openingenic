@@ -30,7 +30,7 @@
 #define IMX327_SUPPORT_SCLK (148500000)
 #define SENSOR_OUTPUT_MAX_FPS 60
 #define SENSOR_OUTPUT_MIN_FPS 5
-#define SENSOR_VERSION	"H20190822"
+#define SENSOR_VERSION	"H20230921a"
 #define AGAIN_MAX_DB 0x64
 #define DGAIN_MAX_DB 0x64
 #define LOG2_GAIN_SHIFT 16
@@ -54,6 +54,10 @@ MODULE_PARM_DESC(wdr_bufsize, "Wdr Buf Size");
 static int sensor_max_fps = TX_SENSOR_MAX_FPS_25;
 module_param(sensor_max_fps, int, S_IRUGO);
 MODULE_PARM_DESC(sensor_max_fps, "Sensor Max Fps set interface");
+
+static int shvflip = 1;
+module_param(shvflip, int, S_IRUGO);
+MODULE_PARM_DESC(shvflip, "Sensor HV Flip Enable interface");
 
 static int rhs1 = 101;
 
@@ -603,6 +607,7 @@ int imx327_write(struct tx_isp_subdev *sd, uint16_t reg,
 	return ret;
 }
 
+#if 0
 static int imx327_read_array(struct tx_isp_subdev *sd, struct regval_list *vals)
 {
 	int ret;
@@ -619,6 +624,8 @@ static int imx327_read_array(struct tx_isp_subdev *sd, struct regval_list *vals)
 	}
 	return 0;
 }
+#endif
+
 static int imx327_write_array(struct tx_isp_subdev *sd, struct regval_list *vals)
 {
 	int ret;
@@ -664,6 +671,39 @@ static int imx327_detect(struct tx_isp_subdev *sd, unsigned int *ident)
 
 	return 0;
 }
+
+
+
+static int imx327_set_vflip(struct tx_isp_subdev *sd, int enable)
+{
+		int ret = -1;
+	unsigned char val = 0x0;
+
+	ret = imx327_read(sd, 0x3007, &val);
+	switch(enable)
+    {
+    case 0:
+		val = 0x00;
+        break;
+    case 1:
+		val = 0x02;
+	    break;
+    case 2:
+		val = 0x01;
+        break;
+	case 3:
+		val = 0x03;
+        break;
+    default:
+        break;
+    }
+	ret += imx327_write(sd, 0x3007, val);
+	if(0 != ret)
+		return ret;
+
+	return 0;
+}
+
 
 static int imx327_set_integration_time_short(struct tx_isp_subdev *sd, int value)
 {
@@ -987,6 +1027,10 @@ static int imx327_sensor_ops_ioctl(struct tx_isp_subdev *sd, unsigned int cmd, v
 		if(arg)
 			ret = imx327_set_wdr_stop(sd, *(int*)arg);
 		break;
+    case TX_ISP_EVENT_SENSOR_VFLIP:
+		if(arg)
+			ret = imx327_set_vflip(sd, *(int*)arg);
+		break;
 	default:
 		break;;
 	}
@@ -1063,6 +1107,89 @@ struct platform_device sensor_platform_device = {
 	.num_resources = 0,
 };
 
+static int sensor_mclk_config(struct tx_isp_sensor *sensor, unsigned long want_rate)
+{
+        unsigned long rate = 0;
+        struct clk *pll = NULL;
+        char *plls[] = {"mpll", "sclka"};
+        int psize = sizeof(plls) / sizeof(char *);
+        char *ppll = plls[psize - 1];
+        int ret = 0, i = 0;
+
+        pll = clk_get_parent(sensor->mclk);
+        rate = clk_get_rate(pll);
+        if (rate % want_rate) {
+                for (i = 0; i < psize; i++) {
+                        pll = clk_get(NULL, plls[i]);
+                        rate = clk_get_rate(pll);
+                        if (!(rate % want_rate)) {
+                                ret = clk_set_parent(sensor->mclk, pll);
+                                if (ret) {
+                                        ISP_WARNING("[%s %d] %s mounted node switchover failed !!!\n",
+                                                    __func__, __LINE__, plls[i]);
+                                        continue;
+                                } else {
+                                        break;
+                                }
+                        }
+                }
+                if (i == psize) {
+                        if (!ret) {
+                                pll = clk_get(NULL, ppll);
+                                rate = clk_get_rate(pll);
+                                if(want_rate == 37125000){
+                                        if((rate >= 1188000000)) {
+                                                rate = 1188000000;
+                                        } else if (rate >= 891000000) {
+                                                rate = 891000000;
+                                        } else {
+                                                ISP_ERROR("[%s %d] The %s clock setting failed !!!\n",
+                                                          __func__, __LINE__, ppll);
+                                                ret = -1;
+                                                goto error;
+                                        }
+                                } else if (want_rate == 24000000 || want_rate == 27000000) {
+                                        rate -= rate % want_rate;
+                                } else {
+                                        ret = -1;
+                                        goto error;
+                                }
+                                ret = private_clk_set_rate(pll, rate);
+                                if (ret) {
+                                        ISP_WARNING("[%s %d] Failed to set %s !!!\n",
+                                                    __func__, __LINE__, ppll);
+                                        goto error;
+                                } else {
+                                        ISP_WARNING("[%s %d] !!!!!!!!!!! The %s frequency has been changed to %ld !!!\n",
+                                                    __func__, __LINE__, ppll, rate);
+                                }
+                                ret = clk_set_parent(sensor->mclk, pll);
+                                if (ret) {
+                                        ISP_WARNING("[%s %d] %s mounted node switchover failed !!!\n",
+                                                    __func__, __LINE__, ppll);
+                                        goto error;
+                                }
+                        } else {
+                                goto error;
+                        }
+                }
+        }
+        private_clk_set_rate(sensor->mclk, want_rate);
+        private_clk_enable(sensor->mclk);
+
+        rate = clk_get_rate(sensor->mclk);
+        if (rate % want_rate) {
+                ret = -1;
+                goto error;
+        }
+
+        return ret;
+
+error:
+        ISP_ERROR("[%s %d] Unable to allocate the required MCLK %ld !!!\n",
+                  __func__, __LINE__, want_rate);
+        return ret;
+}
 
 static int imx327_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
@@ -1070,7 +1197,6 @@ static int imx327_probe(struct i2c_client *client,
 	struct tx_isp_subdev *sd;
 	struct tx_isp_video_in *video;
 	struct tx_isp_sensor *sensor;
-	int ret;
 
 	sensor = (struct tx_isp_sensor *)kzalloc(sizeof(*sensor), GFP_KERNEL);
 	if(!sensor){
@@ -1085,40 +1211,7 @@ static int imx327_probe(struct i2c_client *client,
 		goto err_get_mclk;
 	}
 
-    {
-        unsigned int arate = 0,mrate = 0;
-        unsigned int want_rate = 0;
-	    struct clk *clka = NULL;
-	    struct clk *clkm = NULL;
-
-        want_rate=37125000;
-        clka = clk_get(NULL, "sclka");
-        clkm = clk_get(NULL, "mpll");
-        arate = clk_get_rate(clka);
-        mrate = clk_get_rate(clkm);
-        if((arate%want_rate) && (mrate%want_rate)) {
-            if(want_rate == 37125000){
-                if(arate >= 1400000000) {
-                    arate = 1485000000;
-                } else if((arate >= 1100) || (arate < 1400)) {
-                    arate = 1188000000;
-                } else if(arate <= 1100) {
-                    arate = 891000000;
-                }
-            } else {
-                mrate = arate%want_rate;
-                arate = arate-mrate;
-            }
-            clk_set_rate(clka, arate);
-            clk_set_parent(sensor->mclk, clka);
-        } else if(!(arate%want_rate)) {
-            clk_set_parent(sensor->mclk, clka);
-        } else if(!(mrate%want_rate)) {
-            clk_set_parent(sensor->mclk, clkm);
-        }
-        private_clk_set_rate(sensor->mclk, want_rate);
-        private_clk_enable(sensor->mclk);
-    }
+        sensor_mclk_config(sensor, 37125000);
 
 	sd = &sensor->sd;
 	video = &sensor->video;
@@ -1187,7 +1280,7 @@ static int imx327_probe(struct i2c_client *client,
 	} else {
 		ISP_ERROR("Can not support this data mode!!!\n");
 	}
-
+    sensor->video.shvflip = shvflip;
 	sensor->video.attr = &imx327_attr;
 	sensor->video.vi_max_width = wsize->width;
 	sensor->video.vi_max_height = wsize->height;
