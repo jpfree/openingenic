@@ -36,10 +36,6 @@ static int reset_gpio = GPIO_PA(18);
 module_param(reset_gpio, int, S_IRUGO);
 MODULE_PARM_DESC(reset_gpio, "Reset GPIO NUM");
 
-static int pwdn_gpio = GPIO_PB(18);
-module_param(pwdn_gpio, int, S_IRUGO);
-MODULE_PARM_DESC(pwdn_gpio, "Power down GPIO NUM");
-
 static int data_interface = TX_SENSOR_DATA_INTERFACE_MIPI;
 module_param(data_interface, int, S_IRUGO);
 MODULE_PARM_DESC(data_interface, "Sensor Date interface");
@@ -817,14 +813,6 @@ static int sc1346_g_chip_ident(struct tx_isp_subdev *sd,
 			ISP_ERROR("gpio requrest fail %d\n",reset_gpio);
 		}
 	}
-	if(pwdn_gpio != -1){
-		ret = private_gpio_request(pwdn_gpio,"sc1346_pwdn");
-		if(!ret){
-			private_gpio_direction_output(pwdn_gpio, 1);
-		}else{
-			ISP_ERROR("gpio requrest fail %d\n",pwdn_gpio);
-		}
-	}
         ret = sc1346_detect(sd, &ident);
 	if (ret) {
 		ISP_ERROR("chip found @ 0x%x (%s) is not an sc1346 chip.\n",
@@ -1074,8 +1062,6 @@ static int sc1346_remove(struct i2c_client *client)
 
 	if(reset_gpio != -1)
 		private_gpio_free(reset_gpio);
-	if(pwdn_gpio != -1)
-		private_gpio_free(pwdn_gpio);
 
 	private_clk_disable(sensor->mclk);
 	private_clk_put(sensor->mclk);
