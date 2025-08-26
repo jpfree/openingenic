@@ -6,4 +6,5 @@ include $(src)/sensors/$(SOC)/sc1a4t/Kbuild
 include $(src)/sensors/$(SOC)/sc200ai/Kbuild
 include $(src)/sensors/$(SOC)/sc2310/Kbuild
 include $(src)/sensors/$(SOC)/sc2331/Kbuild
+include $(src)/sensors/$(SOC)/sc2336/Kbuild
 include $(src)/sensors/$(SOC)/sc301IoT/Kbuild
