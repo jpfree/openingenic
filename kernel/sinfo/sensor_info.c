@@ -661,13 +661,12 @@ static struct miscdevice misc_sinfo = {
 	.fops = &sinfo_fops,
 };
 
-
 static int sinfo_proc_show(struct seq_file *m, void *v)
 {
 	if (-1 == g_sensor_id)
 		seq_printf(m, "sensor not found\n");
 	else
-		seq_printf(m, "sensor :%s\n", g_sinfo[g_sensor_id].name);
+		seq_printf(m, "sensor: %s\n", g_sinfo[g_sensor_id].name);
 	return 0;
 }
 
