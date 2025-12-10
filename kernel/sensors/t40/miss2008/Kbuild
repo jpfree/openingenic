@@ -1,12 +1,13 @@
-MODULE_NAME := sensor_miss2008_$(SOC)
+MODULE_NAME := sensor_mis2008_$(SOC)
 OUT := $(MODULE_NAME)
 
 DIR=sensors/$(SOC)
 
-SRCS := $(DIR)/miss2008/miss2008.c
+SRCS := $(DIR)/mis2008/mis2008.c
 
 OBJS := $(SRCS:%.c=%.o) $(ASM_SRCS:%.S=%.o)
 
 $(OUT)-objs := $(OBJS)
+
 
 obj-m += $(OUT).o
